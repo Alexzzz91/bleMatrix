@@ -3,18 +3,33 @@
 </script>
 
 <script lang="ts">
-import { modes } from '$lib/modes';
+	import type { BluetoothTerminal } from '$lib/BluetoothTerminal';
 
-	import { getContext, onMount } from 'svelte';
+	import { modes } from '$lib/commonData';
+	import {
+		defaultDeviceName,
+		deviceName,
+		amplitude,
+		buttonCounter,
+		autoChangePatterns,
+	} from '$lib/stores';
+
+	import { getContext } from 'svelte';
 	import Select from 'svelte-select';
 
-	const terminal = getContext('terminal');
+	const bluetoothTerminal = getContext<BluetoothTerminal>('bluetoothTerminal');
 
-	onMount(async () => {
+	async function sendMode() {
 		try {
-			await terminal.send(modes.Eq);
+			await bluetoothTerminal.send(modes.Eq);
 		} catch (error) {
 			console.error(error)
+		}
+	};
+
+	deviceName.subscribe((value) => {
+		if (value !== defaultDeviceName) {
+			sendMode();
 		}
 	});
 
@@ -30,18 +45,38 @@ import { modes } from '$lib/modes';
 	let value = items[0];
 
 	let automode = false;
+	let eqSensitive = 60;
 
 	async function handleSelect({ detail }) {
-		await terminal.send(`?${detail.value}`);
+		await bluetoothTerminal.send(`?${detail.value}`);
 	}
 
 	async function handleChangeEqSensitive({ target }) {
-		await terminal.send(`@${target.value}`);
+		eqSensitive = Number(target.value);
+		await bluetoothTerminal.send(`@${target.value}`);
 	}
 
 	async function handleChangeAutoMode() {
-		await terminal.send(`!${automode ? 1 : 0}`);
+		await bluetoothTerminal.send(`!${automode ? 1 : 0}`);
 	}
+
+	amplitude.subscribe((value) => {
+		eqSensitive = value;
+	});
+
+	buttonCounter.subscribe((buttonCounterValue) => {
+		const newValue = items.find((item) => item.value === buttonCounterValue.toString());
+		
+		if (!newValue) {
+			return;
+		}
+		
+		value = newValue;
+	});
+
+	autoChangePatterns.subscribe((value) => {
+		automode = value;
+	});
 </script>
 
 <svelte:head>
@@ -82,6 +117,7 @@ import { modes } from '$lib/modes';
 			type="range" 
 			id="EqSensitive" 
 			name="EqSensitive"
+			bind:value={eqSensitive}
 			min="1" 
 			max="99"
 		>

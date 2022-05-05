@@ -5,17 +5,16 @@
 
 	import { setContext } from 'svelte';
 
-	import { BluetoothTerminal } from "$lib/BluetoothTerminal";
-	import { defaultDeviceName, deviceName } from '$lib/stores';
+	import { bridgest, defaultDeviceName, deviceName } from '$lib/stores';
+	import { terminal as bluetoothTerminal } from '$lib/terminal';
 
-	const serviveUuid = 0xFFE0
-	const characteristicUuid = 0xFFE1
+	setContext('bluetoothTerminal', bluetoothTerminal);
 
-	export const terminal = new BluetoothTerminal(serviveUuid,characteristicUuid, '\n','\n');
-	setContext('terminal', terminal);
+	let lightValue: number = 100;
 
-	async function handleChangeBridgest({ target }) {
-		await terminal.send(`^${target.value}`);
+	async function handleChangeBridgest({ currentTarget }: Event & { currentTarget: EventTarget & HTMLInputElement;}) {
+		lightValue = Number(currentTarget.value);
+		await bluetoothTerminal.send(`^${currentTarget.value}`);
 	}
 
 	let deviceNameLabel: string;
@@ -23,9 +22,13 @@
 	deviceName.subscribe(value => {
 		deviceNameLabel = value;
 	});
+
+	bridgest.subscribe(value => {
+		lightValue = value;
+	});
 </script>
 
-<Header terminal={terminal}/>
+<Header bluetoothTerminal={bluetoothTerminal}/>
 
 {#if deviceNameLabel === defaultDeviceName}
 	<div class="disabled-notify">
@@ -40,13 +43,15 @@
 		<label 
 			for="volume" 
 			class="text-2xl text-slate-50">
-			Яркость
+			Яркость 
+			<span class="text-sm text-slate-50"> {lightValue} </span>
 		</label>
 		<input
 			on:change={handleChangeBridgest}
 			type="range" 
 			id="volume" 
 			name="volume"
+			bind:value={lightValue}
 			min="2" 
 			max="255"
 		>
@@ -69,6 +74,7 @@
 
 	main.blur {
 		opacity: 0.5;
+		pointer-events: none;
 	}
 	
 	.disabled-notify {

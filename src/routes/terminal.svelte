@@ -3,20 +3,7 @@
 </script>
 
 <script lang="ts">	
-	import { getContext, onMount } from 'svelte';
-
-	const terminal = getContext('terminal');
-
-	onMount(async () => {
-		try {
-			await terminal.send(modes.Text);
-		} catch (error) {
-			console.error(error)
-		}
-	});
-
 	import Terminal from '$lib/Terminal.svelte';
-	import { modes } from '$lib/modes';
 
 </script>
 

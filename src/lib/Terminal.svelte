@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { spring } from 'svelte/motion';
 	import { getContext } from 'svelte';
+	import type { BluetoothTerminal } from './BluetoothTerminal';
 
-	const terminal = getContext('terminal');
+	const bluetoothTerminal = getContext<BluetoothTerminal>('bluetoothTerminal');
 
 	let logs: {type?: string, message: string}[] = [];
 
@@ -12,14 +12,14 @@
 		logs = logs;
 	};
 
-	terminal.receive = function(data) {
+	bluetoothTerminal.receive = function(data) {
 		console.log('data', data);
 		logToTerminal(data, 'in');
 	};
 
 
 	// Override default log method to output messages to the terminal and console.
-	terminal._log = function(...messages) {
+	bluetoothTerminal._log = function(...messages) {
 		// We can't use `super._log()` here.
 		messages.forEach((message) => {
 			logToTerminal(message);
@@ -30,7 +30,7 @@
 	let inputValue = '';
 
 	const send = (data) => {
-		terminal.send(data)
+		bluetoothTerminal.send(data)
 			.then(() => logToTerminal(data, 'out'))
 			.catch((error) => logToTerminal(error));
 	};
@@ -62,7 +62,6 @@
 		aria-label="Input" 
 		autocomplete="off" 
 		placeholder="Type something to send..."
-		autofocus
 		bind:value={inputValue}
 	>
 

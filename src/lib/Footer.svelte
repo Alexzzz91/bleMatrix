@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { routes } from './commonData';
 </script>
 
-<footer class="w-full px-6 py-2 flex justify-between fixed bottom-0 z-40 border-t border-gray-99 bg-indigo-900 shadow-md">
-	<a sveltekit:prefetch href="/" class:active={$page.url.pathname === '/'}>
+<footer class="w-full px-6 py-2 flex justify-between fixed bottom-0 z-40 border-t border-gray-99 bg-slate-900 shadow-md">
+	<a sveltekit:prefetch href={routes.mainPage} class:active={$page.url.pathname === routes.mainPage}>
 		<span 
 			class="px-2 py-1 cursor-pointer text-sm flex flex-col items-center text-center text-primary"
 			aria-label="Главная"
@@ -12,7 +13,7 @@
 			<span class="mx-1 font-roboto text-white">Главная</span>
 		</span>
 	</a>
-	<a sveltekit:prefetch href="/text" class:active={$page.url.pathname === '/text'}>
+	<a sveltekit:prefetch href={`/${routes.text}`} class:active={$page.url.pathname === `/${routes.text}`}>
 		<span 
 			class="px-2 py-1 cursor-pointer text-sm flex flex-col items-center text-center"
 			aria-label="Бегущая строка"
@@ -21,13 +22,13 @@
 		<span class="mx-1 font-roboto text-white">Бегущая строка</span>
 		</span>
 	</a>
-	<a sveltekit:prefetch href="/equalizer" class:active={$page.url.pathname === '/equalizer'}>
+	<a sveltekit:prefetch href={`/${routes.equalizer}`} class:active={$page.url.pathname === `/${routes.equalizer}`}>
 		<span class="px-2 py-1 cursor-pointer hover:bg-indigo-600 hover:text-gray-700 text-sm flex flex-col items-center text-center">
 			<i class="material-icons">equalizer</i>
 			<span class="mx-1 font-roboto text-white">Eq</span>
 		</span>
 	</a>
-	<a sveltekit:prefetch href="/row_text" class:active={$page.url.pathname === '/row_text'}>
+	<a sveltekit:prefetch href={`/${routes.terminal}`} class:active={$page.url.pathname === `/${routes.terminal}`}>
 		<span class="px-2 py-1 cursor-pointer text-sm flex flex-col items-center text-center">
 			<i class="material-icons">developer_mode</i>
 			<span class="mx-1 font-roboto text-white">Terminal</span>
