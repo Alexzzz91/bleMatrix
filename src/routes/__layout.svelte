@@ -30,15 +30,16 @@
 
 <Header bluetoothTerminal={bluetoothTerminal}/>
 
-{#if deviceNameLabel === defaultDeviceName}
+<!-- {#if deviceNameLabel === defaultDeviceName}
 	<div class="disabled-notify">
 		<span class="text-2xl text-slate-50">
 			Нет подключеного устройства
 		</span>
 	</div>
-{/if}
+{/if} -->
 
-<main class:blur="{deviceNameLabel === defaultDeviceName}">
+<!-- <main class:blur="{deviceNameLabel === defaultDeviceName}"> -->
+<main>
 	<div class="bridgest">
 		<label 
 			for="volume" 
@@ -69,7 +70,10 @@
 		padding: 1rem;
 		width: 100vw;
 		margin: 0 auto;
-		box-sizing: border-box
+		box-sizing: border-box;
+		 /* 69 высота футера и 58 высота шапки + 3 пикселя на всякий случай */
+		padding-bottom: 130px;
+    	height: inherit;
 	}
 
 	main.blur {

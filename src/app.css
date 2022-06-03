@@ -3,6 +3,14 @@
 @tailwind utilities;
 
 
+#root {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+}
+
 input[type=range] {
     -webkit-appearance: none;
     margin: 18px 0;

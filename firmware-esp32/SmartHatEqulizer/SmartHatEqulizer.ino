@@ -21,7 +21,7 @@ Preferences preferences;
 #define SAMPLES         512          // Must be a power of 2
 #define SAMPLING_FREQ   40000         // Hz, must be 40000 or less due to ADC conversion time. Determines maximum frequency that can be analysed by the FFT Fmax=sampleF/2.
 #define DEF_AMPLITUDE   60          // Depending on your audio source level, you may need to alter this value. Can be used as a 'sensitivity' control.
-
+//
 #define AUDIO_IN_PIN    12            // Signal in on this pin
 #define LED_PIN         13             // LED strip data
 #define BTN_PIN         17             // Connect a push button to this pin to change patterns
@@ -31,14 +31,14 @@ Preferences preferences;
 //#define LED_PIN         13             // LED strip data
 //#define BTN_PIN         4             // Connect a push button to this pin to change patterns
 
-#define LONG_PRESS_MS   200           // Number of ms to count as a long press
+#define LONG_PRESS_MS   500           // Number of ms to count as a long press
 #define COLOR_ORDER     GRB           // If colours look wrong, play with this
 #define CHIPSET         WS2812B       // LED strip type
 #define MAX_MILLIAMPS   1000          // Careful with the amount of power here if running off USB port
 const int BRIGHTNESS_SETTINGS[3] = {5, 7, 10};  // 3 Integer array for 3 brightness settings (based on pressing+holding BTN_PIN)
 #define LED_VOLTS       5             // Usually 5 or 12
 
-#define NOISE           500   // Used as a crude noise filter, values below this are ignored
+#define NOISE           200   // Used as a crude noise filter, values below this are ignored
 
 
 const uint8_t kMatrixWidth = 20;                          // Matrix width
@@ -98,21 +98,24 @@ CRGBPalette16 greenbluePal = greenblue_gp;
 CRGBPalette16 heatPal = redyellow_gp;
 uint8_t colorTimer = 0;
 
+boolean isConnectMode = false;   
+boolean deviceConnected = false;
+
 boolean fullTextFlag = false;                   // флаг: текст бегущей строки показан полностью (строка убежала)
 boolean loadingFlag = true;                     // флаг: выполняется инициализация параметров режима
 byte modeCode;                                  // тип текущего эффекта: 0 бегущая строка, 1 эквалайзер
-byte thisMode = 0;                              // текущий режим
+byte thisMode = 1;                              // текущий режим
 byte thisEffect = 0;                            // текущий эффект
-byte thisNumBands = 16;
-int currentNoise = 200;   // Used as a crude noise filter, values below this are ignored
+byte thisNumBands = 8;
+int currentNoise = 500;   // Used as a crude noise filter, values below this are ignored
 int currentBridgest = BRIGHTNESS_SETTINGS[1];   // текущая яркость
 byte breathBrightness;     
 uint32_t globalColor = 0xffffff;                // Цвет рисования при запуске белый
 String runningText = "";                        // Текущий текст бегущей строки, задаваемый пользователем со смартфона
 
 int barWidth = (kMatrixWidth  / thisNumBands);
-int amplitudeFactor = 10;
-int currentSamples = 256;           // Must be a power of 2
+int amplitudeFactor = 1;
+int currentSamples = 512;           // Must be a power of 2
 
 double vReal[1024];
 double vImag[1024];
@@ -285,8 +288,10 @@ class MyServerCallbacks: public BLECharacteristicCallbacks {
       int currentTempBridgestIndex = 0;
       int currentTempAmplitudeIndex = 0;
       int currentTempScrollSpeedIndex = 0;
+      int currentTempCurrentNoiseIndex = 0;
       int newBridgest = currentBridgest;
       char tempBridgest[3] =  {};
+      char tempCurrentNoise[4] =  {};
       char tempAmplitude[3] =  {};
       char tempScrollSpeed[3] =  {};
       
@@ -348,13 +353,16 @@ class MyServerCallbacks: public BLECharacteristicCallbacks {
           if (value[0] == 'b' && value[1] == 'B') {
             isCommand = true;
             
-            if (value[2] == '8') {
+            if (value[2] == '1') {
               thisNumBands = 8;
             }
             
-            if (value[2] == '1' && value[3] == '6') {
+            if (value[2] == '2') {
               thisNumBands = 16;
             }
+
+            preferences.putUInt("thisNumBands", thisNumBands);
+            barWidth = (kMatrixWidth  / (thisNumBands - 1));
           }
           if (value[0] == 'a' && value[1] == 'F') {
             isCommand = true;
@@ -371,6 +379,8 @@ class MyServerCallbacks: public BLECharacteristicCallbacks {
            if (value[2] == '4') {
               amplitudeFactor = 1000;
             }
+
+            preferences.putUInt("amplitudeFactor", amplitudeFactor);
           }
           if (value[0] == 's' && value[1] == 'A') {
             isCommand = true;
@@ -546,6 +556,13 @@ class MyServerCallbacks: public BLECharacteristicCallbacks {
         preferences.putUInt("amplitude", numbAmplitude);
       }
 
+      int numbCurrentNoise = atoi(tempCurrentNoise);
+  
+      if (numbCurrentNoise > 0) {
+        currentNoise = numbCurrentNoise;
+        preferences.putUInt("currentNoise", currentNoise);
+      }
+
       int numbScrollSpeed = atoi(tempScrollSpeed);
 
       if (numbScrollSpeed > 0) {
@@ -562,6 +579,17 @@ class MyServerCallbacks: public BLECharacteristicCallbacks {
     }
 };
 
+//Setup callbacks onConnect and onDisconnect
+class MyConnectCallbacks: public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) {
+    deviceConnected = true;
+    isConnectMode = false;
+  };
+  void onDisconnect(BLEServer* pServer) {
+    deviceConnected = false;
+  }
+};
+
 void setup() {
   Serial.begin(115200);
 
@@ -576,9 +604,10 @@ void setup() {
   thisMode = preferences.getUInt("thisMode", 1);
   thisEffect = preferences.getUInt("thisEffect", 0);
   amplitude = preferences.getUInt("amplitude", DEF_AMPLITUDE);
+  amplitudeFactor = preferences.getUInt("amplitudeFactor", 100);
   scrollSpeed = preferences.getUInt("numbScrollSpeed", D_TEXT_SPEED);
 
-  thisNumBands = preferences.getUInt("thisNumBands", 16);
+  thisNumBands = preferences.getUInt("thisNumBands", 8);
   currentNoise = preferences.getUInt("currentNoise", NOISE);
 
   barWidth = (kMatrixWidth  / (thisNumBands - 1));
@@ -587,13 +616,15 @@ void setup() {
   modeBtn.begin();
 //  modeBtn.onPressed(changeMode);
   modeBtn.onPressed(changeEqulizerMode);
-  modeBtn.onPressedFor(LONG_PRESS_MS, brightnessButton);
+  modeBtn.onPressedFor(LONG_PRESS_MS, changeConnectMode);
   modeBtn.onSequence(3, 2000, startAutoMode);
   modeBtn.onSequence(5, 2000, brightnessOff);
   sampling_period_us = round(1000000 * (1.0 / SAMPLING_FREQ));
 
   BLEDevice::init(BLE_NAME);
   BLEServer *pServer = BLEDevice::createServer();
+ 
+  pServer->setCallbacks(new MyConnectCallbacks());
  
   BLEService *pService = pServer->createService(SERVICE_UUID);
 
@@ -634,11 +665,14 @@ void startAutoMode() {
   autoChangePatterns = true;
 }
 
-void brightnessButton() {
-  if (FastLED.getBrightness() == BRIGHTNESS_SETTINGS[2])  FastLED.setBrightness(BRIGHTNESS_SETTINGS[0]);
-  else if (FastLED.getBrightness() == BRIGHTNESS_SETTINGS[0]) FastLED.setBrightness(BRIGHTNESS_SETTINGS[1]);
-  else if (FastLED.getBrightness() == BRIGHTNESS_SETTINGS[1]) FastLED.setBrightness(BRIGHTNESS_SETTINGS[2]);
-  else if (FastLED.getBrightness() == 0) FastLED.setBrightness(BRIGHTNESS_SETTINGS[0]); //Re-enable if lights are "off"
+void changeConnectMode() {
+  Serial.println("changeConnectMode Button pressed");
+  FastLED.clear();
+  if (isConnectMode) {
+    isConnectMode = false;
+  } else {
+    isConnectMode = true;
+  }
 }
 
 void brightnessOff(){
@@ -646,210 +680,217 @@ void brightnessOff(){
 }
 
 void loop() {
-  if (thisMode == MC_TEXT) {
-    uint32_t color = globalColor;
-
-    switch (buttonPushCounter) {
-        case 0:
-          color = 1;
-          break;
-        case 1:
-          color = 2;
-          break;
-        case 2:
-          color = CRGB::RoyalBlue;
-          break;
-        case 3:
-          color = CRGB::HotPink;
-          break;
-        case 4:
-          color = CRGB::Lime;
-          break;
-        case 5:
-          color = CRGB::Red;
-          break;
-
-        default:
-          color = globalColor;
-    }
-    
-    if (readedValue.length() > 0) {
-      String newValue = readedValue.c_str();
-      fillString(newValue, color);
-    } else {
-      fillString("Продам гараж", color);
-    }
-  } else if (thisMode == MC_EQUALIZER) {
-      // Don't clear screen if waterfall pattern, be sure to change this is you change the patterns / order
-    if (buttonPushCounter != 5) FastLED.clear();
+  if (!isConnectMode) {
+    if (thisMode == MC_TEXT) {
+      uint32_t color = globalColor;
   
-    modeBtn.read();
-  
-    // Reset bandValues[]
-    for (int i = 0; i < thisNumBands; i++){
-      bandValues[i] = 0;
-    }
-  
-    // Sample the audio pin
-    for (int i = 0; i < currentSamples; i++) {
-      newTime = micros();
-      vReal[i] = analogRead(AUDIO_IN_PIN); // A conversion takes about 9.7uS on an ESP32
-      vImag[i] = 0;
-      while ((micros() - newTime) < sampling_period_us) { /* chill */ }
-    }
-  
-    // Compute FFT
-    FFT.DCRemoval();
-    FFT.Windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
-    FFT.Compute(FFT_FORWARD);
-    FFT.ComplexToMagnitude();
-  
-    // Analyse FFT results
-    for (int i = 2; i < (currentSamples/2); i++){       // Don't use sample 0 and only first SAMPLES/2 are usable. Each array element represents a frequency bin and its value the amplitude.
-      if (vReal[i] > currentNoise) {                    // Add a crude noise filter
-
-        if (thisNumBands == 8) {
-         // 8 bands, 12kHz top band
-          if (i<=3 )           bandValues[0]  += (int)vReal[i];
-          if (i>3   && i<=6  ) bandValues[1]  += (int)vReal[i];
-          if (i>6   && i<=13 ) bandValues[2]  += (int)vReal[i];
-          if (i>13  && i<=27 ) bandValues[3]  += (int)vReal[i];
-          if (i>27  && i<=55 ) bandValues[4]  += (int)vReal[i];
-          if (i>55  && i<=112) bandValues[5]  += (int)vReal[i];
-          if (i>112 && i<=229) bandValues[6]  += (int)vReal[i];
-          if (i>229          ) bandValues[7]  += (int)vReal[i];
-        } else if (thisNumBands == 16) {
-        //16 bands, 12kHz top band
-          if (i<=2 )           bandValues[0]  += (int)vReal[i];
-          if (i>2   && i<=3  ) bandValues[1]  += (int)vReal[i];
-          if (i>3   && i<=5  ) bandValues[2]  += (int)vReal[i];
-          if (i>5   && i<=7  ) bandValues[3]  += (int)vReal[i];
-          if (i>7   && i<=9  ) bandValues[4]  += (int)vReal[i];
-          if (i>9   && i<=13 ) bandValues[5]  += (int)vReal[i];
-          if (i>13  && i<=18 ) bandValues[6]  += (int)vReal[i];
-          if (i>18  && i<=25 ) bandValues[7]  += (int)vReal[i];
-          if (i>25  && i<=36 ) bandValues[8]  += (int)vReal[i];
-          if (i>36  && i<=50 ) bandValues[9]  += (int)vReal[i];
-          if (i>50  && i<=69 ) bandValues[10] += (int)vReal[i];
-          if (i>69  && i<=97 ) bandValues[11] += (int)vReal[i];
-          if (i>97  && i<=135) bandValues[12] += (int)vReal[i];
-          if (i>135 && i<=189) bandValues[13] += (int)vReal[i];
-          if (i>189 && i<=264) bandValues[14] += (int)vReal[i];
-          if (i>264          ) bandValues[15] += (int)vReal[i];
-        }
-      }
-    }
-    
-    // Process the FFT data into bar heights
-    for (byte band = 0; band < thisNumBands; band++) {   
-      // Scale the bars for the display      
-      int barHeight = bandValues[band] / (amplitude * amplitudeFactor);
-      if (barHeight > TOP) barHeight = TOP;
-  
-      // Small amount of averaging between frames
-      barHeight = ((oldBarHeights[band] * 1) + barHeight) / 2;
-      
-      // Move peak up
-      if (barHeight > peak[band]) {
-        peak[band] = min(TOP, barHeight);
-      }
-  
-      // Draw bars
       switch (buttonPushCounter) {
-        case 0:
-          rainbowBars(band, barHeight);
-          break;
-        case 1:
-          // No bars on this one
-          break;
-        case 2:
-          purpleBars(band, barHeight);
-          break;
-        case 3:
-          centerBars(band, barHeight);
-          break;
-        case 4:
-          changingBars(band, barHeight);
-          break;
-        case 5:
-          waterfall(band);
-          break;
-      }
+          case 0:
+            color = 1;
+            break;
+          case 1:
+            color = 2;
+            break;
+          case 2:
+            color = CRGB::RoyalBlue;
+            break;
+          case 3:
+            color = CRGB::HotPink;
+            break;
+          case 4:
+            color = CRGB::Lime;
+            break;
+          case 5:
+            color = CRGB::Red;
+            break;
   
-      // Draw peaks
-      switch (buttonPushCounter) {
-        case 0:
-          whitePeak(band);
-          break;
-        case 1:
-          outrunPeak(band);
-          break;
-        case 2:
-          whitePeak(band);
-          break;
-        case 3:
-          // No peaks
-          break;
-        case 4:
-          whitePeak(band);
-          break;
-        case 5:
-          // No peaks
-          break;
-      }
-  
-      // Save oldBarHeights for averaging later
-      oldBarHeights[band] = barHeight;
-    }
-  
-    // Decay peak
-    EVERY_N_MILLISECONDS(120) {
-      for (byte band = 0; band < thisNumBands; band++)
-        if (peak[band] > 0) peak[band] -= 1;
-      colorTimer++;
-    }
-  
-    // Used in some of the patterns
-    EVERY_N_MILLISECONDS(5) {
-      colorTimer++;
-    }
-
-    EVERY_N_SECONDS(10) {
-      if (autoChangePatterns) buttonPushCounter = (buttonPushCounter + 1) % 6;
-    }
-  
-    FastLED.show();
-  } else {   
-    if (effectTimer.isReady()) { 
-      switch(thisMode) {
-        case MC_SNOW:                       snowRoutine(); break;                // снег
-        case MC_BALL:                       ballRoutine(); break;                // шарик
-        case MC_BALLS:                     ballsRoutine(); break;                // шарики
-        case MC_RAINBOW:                 rainbowRoutine(); break;                // радуга
-        case MC_RAINBOW_DIAG:    rainbowDiagonalRoutine(); break;                // радуга по диагонали
-        case MC_FIRE:                       fireRoutine(); break;                // огонь
-        case MC_MATRIX:                   matrixRoutine(); break;                // Матрица
-        case MC_STARFALL:               starfallRoutine(); break;                // Цвет
-        case MC_SPARKLES:               sparklesRoutine(); break;                // Радуга пикс.
-      }
-
-      if (thisEffect != 0) { 
-        switch (thisEffect) {
-          case EFFECT_BREATH:           brightnessRoutine(); break; 
-          case EFFECT_COLOR:                colorsRoutine(); break;              
-          case EFFECT_RAINBOW_PIX:   rainbowColorsRoutine(); break; 
-        }
+          default:
+            color = globalColor;
       }
       
-      FastLED.show(); 
-     }
+      if (readedValue.length() > 0) {
+        String newValue = readedValue.c_str();
+        fillString(newValue, color);
+      } else {
+        fillString("Продам гараж", color);
+      }
+    } else if (thisMode == MC_EQUALIZER) {
+        // Don't clear screen if waterfall pattern, be sure to change this is you change the patterns / order
+      if (buttonPushCounter != 5) FastLED.clear();
+    
+      modeBtn.read();
+    
+      // Reset bandValues[]
+      for (int i = 0; i < thisNumBands; i++){
+        bandValues[i] = 0;
+      }
+    
+      // Sample the audio pin
+      for (int i = 0; i < currentSamples; i++) {
+        newTime = micros();
+        vReal[i] = analogRead(AUDIO_IN_PIN); // A conversion takes about 9.7uS on an ESP32
+        vImag[i] = 0;
+        while ((micros() - newTime) < sampling_period_us) { /* chill */ }
+      }
+    
+      // Compute FFT
+      FFT.DCRemoval();
+      FFT.Windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
+      FFT.Compute(FFT_FORWARD);
+      FFT.ComplexToMagnitude();
+    
+      // Analyse FFT results
+      for (int i = 2; i < (currentSamples/2); i++){       // Don't use sample 0 and only first SAMPLES/2 are usable. Each array element represents a frequency bin and its value the amplitude.
+        if (vReal[i] > currentNoise) {                    // Add a crude noise filter
+  
+          if (thisNumBands == 8) {
+           // 8 bands, 12kHz top band
+            if (i<=3 )           bandValues[0]  += (int)vReal[i];
+            if (i>3   && i<=6  ) bandValues[1]  += (int)vReal[i];
+            if (i>6   && i<=13 ) bandValues[2]  += (int)vReal[i];
+            if (i>13  && i<=27 ) bandValues[3]  += (int)vReal[i];
+            if (i>27  && i<=55 ) bandValues[4]  += (int)vReal[i];
+            if (i>55  && i<=112) bandValues[5]  += (int)vReal[i];
+            if (i>112 && i<=229) bandValues[6]  += (int)vReal[i];
+            if (i>229          ) bandValues[7]  += (int)vReal[i];
+          } else if (thisNumBands == 16) {
+          //16 bands, 12kHz top band
+            if (i<=2 )           bandValues[0]  += (int)vReal[i];
+            if (i>2   && i<=3  ) bandValues[1]  += (int)vReal[i];
+            if (i>3   && i<=5  ) bandValues[2]  += (int)vReal[i];
+            if (i>5   && i<=7  ) bandValues[3]  += (int)vReal[i];
+            if (i>7   && i<=9  ) bandValues[4]  += (int)vReal[i];
+            if (i>9   && i<=13 ) bandValues[5]  += (int)vReal[i];
+            if (i>13  && i<=18 ) bandValues[6]  += (int)vReal[i];
+            if (i>18  && i<=25 ) bandValues[7]  += (int)vReal[i];
+            if (i>25  && i<=36 ) bandValues[8]  += (int)vReal[i];
+            if (i>36  && i<=50 ) bandValues[9]  += (int)vReal[i];
+            if (i>50  && i<=69 ) bandValues[10] += (int)vReal[i];
+            if (i>69  && i<=97 ) bandValues[11] += (int)vReal[i];
+            if (i>97  && i<=135) bandValues[12] += (int)vReal[i];
+            if (i>135 && i<=189) bandValues[13] += (int)vReal[i];
+            if (i>189 && i<=264) bandValues[14] += (int)vReal[i];
+            if (i>264          ) bandValues[15] += (int)vReal[i];
+          }
+        }
+      }
+
+      Serial.print("thisNumBands:   ");
+      Serial.println(thisNumBands);
+      
+      // Process the FFT data into bar heights
+      for (byte band = 0; band < thisNumBands; band++) {   
+        // Scale the bars for the display      
+        int barHeight = bandValues[band] / (amplitude * amplitudeFactor);
+        if (barHeight > TOP) barHeight = TOP;
+    
+        // Small amount of averaging between frames
+        barHeight = ((oldBarHeights[band] * 1) + barHeight) / 2;
+        
+        // Move peak up
+        if (barHeight > peak[band]) {
+          peak[band] = min(TOP, barHeight);
+        }
+    
+        // Draw bars
+        switch (buttonPushCounter) {
+          case 0:
+            rainbowBars(band, barHeight);
+            break;
+          case 1:
+            // No bars on this one
+            break;
+          case 2:
+            purpleBars(band, barHeight);
+            break;
+          case 3:
+            centerBars(band, barHeight);
+            break;
+          case 4:
+            changingBars(band, barHeight);
+            break;
+          case 5:
+            waterfall(band);
+            break;
+        }
+    
+        // Draw peaks
+        switch (buttonPushCounter) {
+          case 0:
+            whitePeak(band);
+            break;
+          case 1:
+            outrunPeak(band);
+            break;
+          case 2:
+            whitePeak(band);
+            break;
+          case 3:
+            // No peaks
+            break;
+          case 4:
+            whitePeak(band);
+            break;
+          case 5:
+            // No peaks
+            break;
+        }
+    
+        // Save oldBarHeights for averaging later
+        oldBarHeights[band] = barHeight;
+      }
+    
+      // Decay peak
+      EVERY_N_MILLISECONDS(120) {
+        for (byte band = 0; band < thisNumBands; band++)
+          if (peak[band] > 0) peak[band] -= 1;
+        colorTimer++;
+      }
+    
+      // Used in some of the patterns
+      EVERY_N_MILLISECONDS(5) {
+        colorTimer++;
+      }
+  
+      EVERY_N_SECONDS(10) {
+        if (autoChangePatterns) buttonPushCounter = (buttonPushCounter + 1) % 6;
+      }
+    
+      FastLED.show();
+    } else {   
+      if (effectTimer.isReady()) { 
+        switch(thisMode) {
+          case MC_SNOW:                       snowRoutine(); break;                // снег
+          case MC_BALL:                       ballRoutine(); break;                // шарик
+          case MC_BALLS:                     ballsRoutine(); break;                // шарики
+          case MC_RAINBOW:                 rainbowRoutine(); break;                // радуга
+          case MC_RAINBOW_DIAG:    rainbowDiagonalRoutine(); break;                // радуга по диагонали
+          case MC_FIRE:                       fireRoutine(); break;                // огонь
+          case MC_MATRIX:                   matrixRoutine(); break;                // Матрица
+          case MC_STARFALL:               starfallRoutine(); break;                // Цвет
+          case MC_SPARKLES:               sparklesRoutine(); break;                // Радуга пикс.
+        }
+  
+        if (thisEffect != 0) { 
+          switch (thisEffect) {
+            case EFFECT_BREATH:           brightnessRoutine(); break; 
+            case EFFECT_COLOR:                colorsRoutine(); break;              
+            case EFFECT_RAINBOW_PIX:   rainbowColorsRoutine(); break; 
+          }
+        }
+        
+        FastLED.show(); 
+       }
+    }
+  } else {
+    fillString("!! Режим подключения !!", globalColor);
   }
 }
 
 // PATTERNS BELOW //
 
 void rainbowBars(int band, int barHeight) {
-  int xStart = barWidth * band;
+  int xStart = (barWidth * band) + 2;
   for (int x = xStart; x < xStart + barWidth; x++) {
     if (barHeight % 2 == 0) barHeight--;
     int yStart = 0;
@@ -894,7 +935,7 @@ void centerBars(int band, int barHeight) {
 }
 
 void whitePeak(int band) {
-  int xStart = barWidth * band;
+  int xStart = (barWidth * band) + 2;
   int peakHeight = peak[band];
   for (int x = xStart; x < xStart + barWidth; x++) {
     matrix->drawPixel(x, peakHeight, CHSV(0,0,255));

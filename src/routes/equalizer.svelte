@@ -60,6 +60,42 @@
 		await bluetoothTerminal.send(`!${automode ? 1 : 0}`);
 	}
 
+	let amplitudeFactors = [
+		{value: '1', label: 'x1'},
+		{value: '2', label: 'x10'},
+		{value: '3', label: 'x100'},
+		{value: '4', label: 'x1000'},
+	];
+
+	let amplitudeFactor = amplitudeFactors[0];
+
+	async function handleSelectAmplitudeFactor({ detail }) {
+		await bluetoothTerminal.send(`aF${detail.value}`);
+	}
+
+	let samplesList = [
+		{value: '1', label: '256'},
+		{value: '2', label: '512'},
+		{value: '3', label: '1024'},
+	];
+
+	let samples = samplesList[0];
+
+	async function handleSelectSamples({ detail }) {
+		await bluetoothTerminal.send(`sA${detail.value}`);
+	}
+
+	let barsCount = [
+		{value: '1', label: '8-ми полосный'},
+		{value: '2', label: '16-ти полосный '},
+	];
+
+	let currentBarsCount = barsCount[0];
+
+	async function handleSelectBarsCount({ detail }) {
+		await bluetoothTerminal.send(`bB${detail.value}`);
+	}
+
 	amplitude.subscribe((value) => {
 		eqSensitive = value;
 	});
@@ -106,6 +142,21 @@
 	</div>
 
 	<div class="block">
+		<caption class="w-full block text-cyan-50">Обработка семплов</caption>
+		<Select items={samplesList} value={samples} on:select={handleSelectSamples}></Select>
+	</div>
+
+	<div class="block">
+		<caption class="w-full block text-cyan-50">Количество столбцов</caption>
+		<Select items={barsCount} value={currentBarsCount} on:select={handleSelectBarsCount}></Select>
+	</div>
+	
+	<div class="block">
+		<caption class="w-full block text-cyan-50">Множитель чувствительности</caption>
+		<Select items={amplitudeFactors} value={amplitudeFactor} on:select={handleSelectAmplitudeFactor}></Select>
+	</div>
+
+	<div class="block">
 		<label 
 			for="EqSensitive"
 			class="text-2xl text-slate-50"
@@ -125,6 +176,10 @@
 </section>
 
 <style>
+	section {
+		overflow: auto;
+		margin-bottom: 100px;
+	}
 	.block {
 		display: flex;
     	flex-direction: column;
