@@ -305,7 +305,7 @@ export class BluetoothTerminal {
    * @return {Promise}
    * @private
    */
-  _connectDeviceAndCacheCharacteristic(device: object): Promise<any> {
+  async _connectDeviceAndCacheCharacteristic(device: object): Promise<any> {
     // Check remembered characteristic.
     if (device.gatt.connected && this._characteristic) {
       return Promise.resolve(this._characteristic);
@@ -313,24 +313,50 @@ export class BluetoothTerminal {
 
     this._log('Connecting to GATT server...');
 
-    return device.gatt.connect().
-        then((server) => {
-          this._log('GATT server connected', 'Getting service...');
+    console.log(device.gatt);
 
-          return server.getPrimaryService(this._serviceUuid);
-        }).
-        then((service) => {
-          this._log('Service found', 'Getting characteristic...' + this._characteristicUuid);
+    try {
+      const server = await device.gatt.connect();
 
-          return service.getCharacteristic(this._characteristicUuid);
-        }).
-        then((characteristic) => {
-          this._log('Characteristic found');
+      console.log('server', server);
+      
+      this._log('GATT server connected', 'Getting service...');
 
-          this._characteristic = characteristic; // Remember characteristic.
+      const service = await server.getPrimaryService(this._serviceUuid);
 
-          return this._characteristic;
-        });
+      console.log('service', service);
+
+      this._log('Service found', 'Getting characteristic...' + this._characteristicUuid);
+
+      const characteristic = await service.getCharacteristic(this._characteristicUuid);
+
+      this._log('Characteristic found');
+
+      this._characteristic = characteristic; // Remember characteristic.
+
+      return this._characteristic;
+      
+          // then((server) => {
+          //   this._log('GATT server connected', 'Getting service...');
+  
+          //   return server.getPrimaryService(this._serviceUuid);
+          // }).
+          // then((service) => {
+          //   this._log('Service found', 'Getting characteristic...' + this._characteristicUuid);
+  
+          //   return service.getCharacteristic(this._characteristicUuid);
+          // }).
+          // then((characteristic) => {
+          //   this._log('Characteristic found');
+  
+          //   this._characteristic = characteristic; // Remember characteristic.
+  
+          //   return this._characteristic;
+          // })
+          // .catch((err) => console.error(err));
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   /**
@@ -341,6 +367,8 @@ export class BluetoothTerminal {
    */
   _startNotifications(characteristic: object): Promise<any> {
     this._log('Starting notifications...');
+
+    console.log('characteristic', characteristic);
 
     return characteristic.startNotifications().
         then(() => {

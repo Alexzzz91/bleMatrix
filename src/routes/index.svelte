@@ -69,6 +69,5 @@
 		display: flex;
     	flex-direction: column;
 		margin: 10px 0;
-		zoom: 1.1;
 	}
 </style>

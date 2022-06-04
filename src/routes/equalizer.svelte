@@ -39,13 +39,14 @@
 		{value: '2', label: 'Синии Бары'},
 		{value: '3', label: 'От центра'},
 		{value: '4', label: 'Переливающиеся бары'},
-		{value: '5', label: 'Водопад'},
+		{value: '5', label: 'Гераклит'},
 	];
 
 	let value = items[0];
 
 	let automode = false;
 	let eqSensitive = 60;
+	let noise = 200;
 
 	async function handleSelect({ detail }) {
 		await bluetoothTerminal.send(`?${detail.value}`);
@@ -54,6 +55,11 @@
 	async function handleChangeEqSensitive({ target }) {
 		eqSensitive = Number(target.value);
 		await bluetoothTerminal.send(`@${target.value}`);
+	}
+
+	async function handleChangeNoise({ target }) {
+		noise = Number(target.value);
+		await bluetoothTerminal.send(`*${target.value}`);
 	}
 
 	async function handleChangeAutoMode() {
@@ -161,6 +167,24 @@
 			for="EqSensitive"
 			class="text-2xl text-slate-50"
 		>
+			Фильтр шумов
+		</label>
+		<input
+			on:change={handleChangeNoise}
+			type="range" 
+			id="noise" 
+			name="noise"
+			bind:value={noise}
+			min="1" 
+			max="999"
+		>
+	</div>
+
+	<div class="block">
+		<label 
+			for="EqSensitive"
+			class="text-2xl text-slate-50"
+		>
 			Чувствительность эквалайзера
 		</label>
 		<input
@@ -178,12 +202,11 @@
 <style>
 	section {
 		overflow: auto;
-		margin-bottom: 100px;
+		margin-bottom: 12px;
 	}
 	.block {
 		display: flex;
     	flex-direction: column;
 		margin: 10px 0;
-		zoom: 1.1;
 	}
 </style>

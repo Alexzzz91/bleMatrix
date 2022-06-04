@@ -7,6 +7,7 @@
 
 	import { bridgest, defaultDeviceName, deviceName } from '$lib/stores';
 	import { terminal as bluetoothTerminal } from '$lib/terminal';
+	import { isProd } from '$lib/env';
 
 	setContext('bluetoothTerminal', bluetoothTerminal);
 
@@ -30,16 +31,15 @@
 
 <Header bluetoothTerminal={bluetoothTerminal}/>
 
-<!-- {#if deviceNameLabel === defaultDeviceName}
+{#if deviceNameLabel === defaultDeviceName && isProd}
 	<div class="disabled-notify">
 		<span class="text-2xl text-slate-50">
 			Нет подключеного устройства
 		</span>
 	</div>
-{/if} -->
+{/if}
 
-<!-- <main class:blur="{deviceNameLabel === defaultDeviceName}"> -->
-<main>
+<main class:blur="{deviceNameLabel === defaultDeviceName && isProd}">
 	<div class="bridgest">
 		<label 
 			for="volume" 
@@ -73,6 +73,7 @@
 		box-sizing: border-box;
 		 /* 69 высота футера и 58 высота шапки + 3 пикселя на всякий случай */
 		padding-bottom: 130px;
+		padding-top: 0px;
     	height: inherit;
 	}
 

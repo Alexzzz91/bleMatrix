@@ -18,18 +18,22 @@ Preferences preferences;
 #include "timerMinim.h"
 #include "fonts.h"
 
+#define IS_HAT 0         // специальные конфиги для кепки
+
 #define SAMPLES         512          // Must be a power of 2
 #define SAMPLING_FREQ   40000         // Hz, must be 40000 or less due to ADC conversion time. Determines maximum frequency that can be analysed by the FFT Fmax=sampleF/2.
 #define DEF_AMPLITUDE   60          // Depending on your audio source level, you may need to alter this value. Can be used as a 'sensitivity' control.
-//
-#define AUDIO_IN_PIN    12            // Signal in on this pin
-#define LED_PIN         13             // LED strip data
-#define BTN_PIN         17             // Connect a push button to this pin to change patterns
 
-// кепка
-//#define AUDIO_IN_PIN    15            // Signal in on this pin
-//#define LED_PIN         13             // LED strip data
-//#define BTN_PIN         4             // Connect a push button to this pin to change patterns
+#if (IS_HAT) 
+  #define AUDIO_IN_PIN    15            
+  #define LED_PIN         13            
+  #define BTN_PIN         4             
+#endif
+#if (IS_HAT == 0) 
+  #define AUDIO_IN_PIN    12            
+  #define LED_PIN         13            
+  #define BTN_PIN         17            
+#endif
 
 #define LONG_PRESS_MS   500           // Number of ms to count as a long press
 #define COLOR_ORDER     GRB           // If colours look wrong, play with this
@@ -38,15 +42,24 @@ Preferences preferences;
 const int BRIGHTNESS_SETTINGS[3] = {5, 7, 10};  // 3 Integer array for 3 brightness settings (based on pressing+holding BTN_PIN)
 #define LED_VOLTS       5             // Usually 5 or 12
 
+
+#if (IS_HAT) 
+  #define EQULIZER_OFFSET 0             
+#endif
+#if (IS_HAT == 0) 
+  #define EQULIZER_OFFSET 2             
+#endif
+
 #define NOISE           200   // Used as a crude noise filter, values below this are ignored
 
-
-const uint8_t kMatrixWidth = 20;                          // Matrix width
-const uint8_t kMatrixHeight = 16; 
-
-//кепка
-//const uint8_t kMatrixWidth = 23;                          // Matrix width
-//const uint8_t kMatrixHeight = 8;                          // Matrix height
+#if (IS_HAT == 1) 
+  const uint8_t kMatrixWidth = 23;                          // Matrix width
+  const uint8_t kMatrixHeight = 8;                          // Matrix height         
+#endif
+#if (IS_HAT == 0) 
+  const uint8_t kMatrixWidth = 20;                          // Matrix width
+  const uint8_t kMatrixHeight = 16; 
+#endif
 
 #define NUM_LEDS       (kMatrixWidth * kMatrixHeight)     // Total number of LEDs
 #define TOP            (kMatrixHeight - 0)                // Don't allow the bars to go offscreen
@@ -80,12 +93,6 @@ DEFINE_GRADIENT_PALETTE( greenblue_gp ) {
 128,   0,   5, 255,   //blue
 192,   0, 236, 255,   //cyan
 255,   0, 255,  60 }; //green
-//DEFINE_GRADIENT_PALETTE( redyellow_gp ) {
-//  0,   200, 200,  200,   //white
-// 64,   255, 218,    0,   //yellow
-//128,   231,   0,    0,   //red
-//192,   255, 218,    0,   //yellow
-//255,   200, 200,  200 }; //white
 DEFINE_GRADIENT_PALETTE( redyellow_gp ) {
 0,     255,   0,    0,   //red
 64,    255, 255,    0,   //bright yellow
@@ -100,6 +107,7 @@ uint8_t colorTimer = 0;
 
 boolean isConnectMode = false;   
 boolean deviceConnected = false;
+boolean oldDeviceConnected = false;
 
 boolean fullTextFlag = false;                   // флаг: текст бегущей строки показан полностью (строка убежала)
 boolean loadingFlag = true;                     // флаг: выполняется инициализация параметров режима
@@ -285,13 +293,14 @@ class MyServerCallbacks: public BLECharacteristicCallbacks {
       bool getBridgest = false;
       bool getAmplitude = false;
       bool getScrollSpeed = false;
+      bool getCurrentNoise = false;
       int currentTempBridgestIndex = 0;
       int currentTempAmplitudeIndex = 0;
       int currentTempScrollSpeedIndex = 0;
       int currentTempCurrentNoiseIndex = 0;
       int newBridgest = currentBridgest;
       char tempBridgest[3] =  {};
-      char tempCurrentNoise[4] =  {};
+      char tempCurrentNoise[3] =  {};
       char tempAmplitude[3] =  {};
       char tempScrollSpeed[3] =  {};
       
@@ -350,6 +359,11 @@ class MyServerCallbacks: public BLECharacteristicCallbacks {
             isCommand = true;
           }
 
+          if (value[0] == '*') {
+            getCurrentNoise = true;
+            isCommand = true;
+          }
+
           if (value[0] == 'b' && value[1] == 'B') {
             isCommand = true;
             
@@ -394,6 +408,7 @@ class MyServerCallbacks: public BLECharacteristicCallbacks {
             if (value[2] == '3') {
               currentSamples = 1024;
             }
+            preferences.putUInt("currentSamples", currentSamples);
             vReal[currentSamples];
             vImag[currentSamples];
           }
@@ -498,6 +513,17 @@ class MyServerCallbacks: public BLECharacteristicCallbacks {
               getScrollSpeed = false;
             }
           }
+
+          if (getCurrentNoise && i > 0) {
+            if (value[i]) {
+              tempCurrentNoise[currentTempCurrentNoiseIndex] = value[i]; 
+            }
+            currentTempCurrentNoiseIndex++;
+            
+            if (currentTempCurrentNoiseIndex > 2) {
+              getCurrentNoise = false;
+            }
+          }
         }
         
         if (isGetConfig) {
@@ -510,10 +536,41 @@ class MyServerCallbacks: public BLECharacteristicCallbacks {
           pCharacteristic->notify(); 
           if (thisMode == MC_TEXT) {
             pCharacteristic->setValue(";$=0"); // must add seperator \n for it to register on BLE terminal
+            pCharacteristic->notify(); 
           } else if (thisMode == MC_EQUALIZER) {
             pCharacteristic->setValue(";$=1"); // must add seperator \n for it to register on BLE terminal
+            pCharacteristic->notify(); 
+
+
+            pCharacteristic->setValue(";*="); // must add seperator \n for it to register on BLE terminal
+            pCharacteristic->notify(); 
+            String cnString = String(currentNoise);
+            std::string cnStringUnit16((char*)&cnString, cnString.length());
+            pCharacteristic->setValue(cnStringUnit16); // must add seperator \n for it to register on BLE terminal
+            pCharacteristic->notify(); 
+
+
+            pCharacteristic->setValue(";bB="); // must add seperator \n for it to register on BLE terminal
+            pCharacteristic->notify(); 
+            String nBString = String(thisNumBands);
+            std::string nBStringUnit16((char*)&nBString, nBString.length());
+            pCharacteristic->setValue(nBStringUnit16); // must add seperator \n for it to register on BLE terminal
+            pCharacteristic->notify(); 
+
+            pCharacteristic->setValue(";aF="); // must add seperator \n for it to register on BLE terminal
+            pCharacteristic->notify(); 
+            String aFString = String(amplitudeFactor);
+            std::string aFStringUnit16((char*)&aFString, aFString.length());
+            pCharacteristic->setValue(aFStringUnit16); // must add seperator \n for it to register on BLE terminal
+            pCharacteristic->notify(); 
+
+            pCharacteristic->setValue(";sA="); // must add seperator \n for it to register on BLE terminal
+            pCharacteristic->notify(); 
+            String csString = String(currentSamples);
+            std::string csStringUnit16((char*)&csString, csString.length());
+            pCharacteristic->setValue(csStringUnit16); // must add seperator \n for it to register on BLE terminal
+            pCharacteristic->notify();             
           }
-          pCharacteristic->notify(); 
           pCharacteristic->setValue(";@="); // must add seperator \n for it to register on BLE terminal
           pCharacteristic->notify(); 
           String amplitudeString = String(amplitude);
@@ -603,12 +660,23 @@ void setup() {
   currentBridgest = preferences.getUInt("currentBridgest", BRIGHTNESS_SETTINGS[1]); 
   thisMode = preferences.getUInt("thisMode", 1);
   thisEffect = preferences.getUInt("thisEffect", 0);
-  amplitude = preferences.getUInt("amplitude", DEF_AMPLITUDE);
-  amplitudeFactor = preferences.getUInt("amplitudeFactor", 100);
   scrollSpeed = preferences.getUInt("numbScrollSpeed", D_TEXT_SPEED);
 
   thisNumBands = preferences.getUInt("thisNumBands", 8);
+    Serial.print("thisNumBands:  ");
+    Serial.println(thisNumBands);
   currentNoise = preferences.getUInt("currentNoise", NOISE);
+    Serial.println("currentNoise:  ");
+    Serial.println(currentNoise);
+  currentSamples = preferences.getUInt("currentSamples", 512);
+    Serial.println("currentSamples:  ");
+    Serial.println(currentSamples);
+  amplitude = preferences.getUInt("amplitude", DEF_AMPLITUDE);
+    Serial.println("amplitude:  ");
+    Serial.println(amplitude);
+  amplitudeFactor = preferences.getUInt("amplitudeFactor", 1000);
+    Serial.println("amplitudeFactor:  ");
+    Serial.println(amplitudeFactor);
 
   barWidth = (kMatrixWidth  / (thisNumBands - 1));
 
@@ -715,7 +783,7 @@ void loop() {
         fillString("Продам гараж", color);
       }
     } else if (thisMode == MC_EQUALIZER) {
-        // Don't clear screen if waterfall pattern, be sure to change this is you change the patterns / order
+        // Don't clear screen if heraclitus pattern, be sure to change this is you change the patterns / order
       if (buttonPushCounter != 5) FastLED.clear();
     
       modeBtn.read();
@@ -774,9 +842,6 @@ void loop() {
           }
         }
       }
-
-      Serial.print("thisNumBands:   ");
-      Serial.println(thisNumBands);
       
       // Process the FFT data into bar heights
       for (byte band = 0; band < thisNumBands; band++) {   
@@ -810,7 +875,7 @@ void loop() {
             changingBars(band, barHeight);
             break;
           case 5:
-            waterfall(band);
+            heraclitus(band);
             break;
         }
     
@@ -885,12 +950,27 @@ void loop() {
   } else {
     fillString("!! Режим подключения !!", globalColor);
   }
+
+  // disconnecting
+  if (!deviceConnected && oldDeviceConnected) {
+      delay(500); // give the bluetooth stack the chance to get things ready
+      pServer->startAdvertising(); // restart advertising
+      Serial.println("start advertising");
+      oldDeviceConnected = deviceConnected;
+      isConnectMode = true;
+  }
+  // connecting
+  if (deviceConnected && !oldDeviceConnected) {
+    // do stuff here on connecting
+    isConnectMode = false;
+    oldDeviceConnected = deviceConnected;
+  }
 }
 
 // PATTERNS BELOW //
 
 void rainbowBars(int band, int barHeight) {
-  int xStart = (barWidth * band) + 2;
+  int xStart = (barWidth * band) + EQULIZER_OFFSET;
   for (int x = xStart; x < xStart + barWidth; x++) {
     if (barHeight % 2 == 0) barHeight--;
     int yStart = 0;
@@ -901,7 +981,7 @@ void rainbowBars(int band, int barHeight) {
 }
 
 void purpleBars(int band, int barHeight) {
-  int xStart = barWidth * band;
+  int xStart = (barWidth * band) + EQULIZER_OFFSET;
   for (int x = xStart; x < xStart + barWidth; x++) {
     if (barHeight % 2 == 0) barHeight--;
     int yStart = 0;
@@ -912,7 +992,7 @@ void purpleBars(int band, int barHeight) {
 }
 
 void changingBars(int band, int barHeight) {
-  int xStart = barWidth * band;
+  int xStart = (barWidth * band) + EQULIZER_OFFSET;
   for (int x = xStart; x < xStart + barWidth; x++) {
     if (barHeight % 2 == 0) barHeight--;
     int yStart = 0;
@@ -923,7 +1003,7 @@ void changingBars(int band, int barHeight) {
 }
 
 void centerBars(int band, int barHeight) {
-  int xStart = barWidth * band;
+  int xStart = (barWidth * band) + EQULIZER_OFFSET;
   for (int x = xStart; x < xStart + barWidth; x++) {
     if (barHeight % 2 == 0) barHeight--;
     int yStart = ((kMatrixHeight - barHeight) / 2 );
@@ -935,7 +1015,7 @@ void centerBars(int band, int barHeight) {
 }
 
 void whitePeak(int band) {
-  int xStart = (barWidth * band) + 2;
+  int xStart = (barWidth * band) + EQULIZER_OFFSET;
   int peakHeight = peak[band];
   for (int x = xStart; x < xStart + barWidth; x++) {
     matrix->drawPixel(x, peakHeight, CHSV(0,0,255));
@@ -943,16 +1023,16 @@ void whitePeak(int band) {
 }
 
 void outrunPeak(int band) {
-  int xStart = barWidth * band;
+  int xStart = (barWidth * band) + EQULIZER_OFFSET;
   int peakHeight = peak[band];
   for (int x = xStart; x < xStart + barWidth; x++) {
     matrix->drawPixel(x, peakHeight, ColorFromPalette(outrunPal, peakHeight * (255 / kMatrixHeight)));
   }
 }
 
-void waterfall(int band) {
-  int xStart = barWidth * band;
-  double highestBandValue = 60000;        // Set this to calibrate your waterfall
+void heraclitus(int band) {
+  int xStart = (barWidth * band) + EQULIZER_OFFSET;
+  double highestBandValue = 30000;        // Set this to calibrate your heraclitus
 
   // Draw bottom line
   for (int x = xStart; x < xStart + barWidth; x++) {
